@@ -1,122 +1,145 @@
 #include "MotorResolucion.h"
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <algorithm>
 
 using namespace std;
 
+// Imprime encabezado del programa
 void imprimirEncabezado() {
     cout << "\n============================================" << endl;
     cout << "  MOTOR DE INFERENCIA POR RESOLUCION" << endl;
-    cout << "        (Sin Variables - Parte 1)" << endl;
+    cout << "        (Sin Variables - Entrada Generica)" << endl;
     cout << "============================================" << endl;
 }
 
-void imprimirMisterio() {
-    cout << "\n--------------------------------------------" << endl;
-    cout << "   CASO: EL MISTERIO DE LA MANSION" << endl;
-    cout << "--------------------------------------------" << endl;
-    cout << "\nCONTEXTO:" << endl;
-    cout << "El Sr. Blackwood fue encontrado muerto" << endl;
-    cout << "en su mansion. Hay tres sospechosos:" << endl;
-    cout << "  - El Mayordomo" << endl;
-    cout << "  - El Jardinero" << endl;
-    cout << "  - La Cocinera" << endl;
+// Funcion auxiliar: recorta espacios al inicio y final
+static inline string trim(const string &s) {
+    auto b = s.find_first_not_of(" \t\r\n");
+    if (b==string::npos) return "";
+    auto e = s.find_last_not_of(" \t\r\n");
+    return s.substr(b, e-b+1);
 }
 
-int main() {
+// Parsea un token individual a Literal.
+// ejemplos de token: "~A", "B", "C"
+Literal parseTokenToLiteral(const string &token) {
+    string t = trim(token);
+    bool neg = false;
+    if (!t.empty() && t[0] == '~') {
+        neg = true;
+        t = trim(t.substr(1));
+    }
+    return Literal(t, neg);
+}
+
+// Parsea una linea como: "~A v B v C" o "A" a una Clausula
+Clausula parseLineToClausula(const string &line) {
+    Clausula c;
+    string s = line;
+    // normaliza separadores: '|' -> 'v'
+    for (char &ch : s) if (ch == '|') ch = 'v';
+    stringstream ss(s);
+    string token;
+    while (getline(ss, token, 'v')) {
+        string tok = trim(token);
+        if (tok.empty()) continue;
+        c.literales.insert(parseTokenToLiteral(tok));
+    }
+    return c;
+}
+
+// Carga clausulas desde un stream (archivo o stdin).
+// Se ignoran lineas vacias o que empiecen con '#'
+vector<Clausula> loadClausesFromStream(istream &in) {
+    vector<Clausula> clauses;
+    string line;
+    while (std::getline(in, line)) {
+        line = trim(line);
+        if (line.empty() || line[0] == '#') continue;
+        clauses.push_back(parseLineToClausula(line));
+    }
+    return clauses;
+}
+
+int main(int argc, char *argv[]) {
     imprimirEncabezado();
-    imprimirMisterio();
-    
+
     MotorResolucion motor;
-    
-    cout << "\nPISTAS:" << endl;
-    cout << "--------------------------------------------" << endl;
-    cout << "1. Mayordomo en cocina -> NO cometio crimen" << endl;
-    cout << "2. Crimen a las 10pm Y Mayordomo NO -> Jardinero O Cocinera" << endl;
-    cout << "3. Cocinera preparando cena -> NO cometio crimen" << endl;
-    cout << "4. Fue Jardinero -> tijeras manchadas" << endl;
-    cout << "5. Tijeras NO manchadas (evidencia)" << endl;
-    cout << "6. Mayordomo en cocina (testimonio)" << endl;
-    cout << "7. Crimen a las 10pm (forense)" << endl;
-    cout << "8. Cocinera preparando cena (testigos)" << endl;
-    cout << "\nPREGUNTA: Fue la Cocinera quien cometio el crimen?" << endl;
-    
-    cout << "\n\n============================================" << endl;
-    cout << "   CONVERSION A FORMA NORMAL CONJUNTIVA" << endl;
-    cout << "============================================" << endl;
-    
-    // 1. MayordomoCocina => ~CrimenMayordomo
-    Clausula c1;
-    c1.literales.insert(Literal("MayordomoCocina", true));
-    c1.literales.insert(Literal("CrimenMayordomo", true));
-    cout << "\n1. ~MayordomoCocina v ~CrimenMayordomo" << endl;
-    motor.agregarClausula(c1);
-    
-    // 2. (Crimen10pm ^ ~CrimenMayordomo) => (CrimenJardinero v CrimenCocinera)
-    Clausula c2;
-    c2.literales.insert(Literal("Crimen10pm", true));
-    c2.literales.insert(Literal("CrimenMayordomo", false));
-    c2.literales.insert(Literal("CrimenJardinero", false));
-    c2.literales.insert(Literal("CrimenCocinera", false));
-    cout << "2. ~Crimen10pm v CrimenMayordomo v CrimenJardinero v CrimenCocinera" << endl;
-    motor.agregarClausula(c2);
-    
-    // 3. CocineraCena => ~CrimenCocinera
-    Clausula c3;
-    c3.literales.insert(Literal("CocineraCena", true));
-    c3.literales.insert(Literal("CrimenCocinera", true));
-    cout << "3. ~CocineraCena v ~CrimenCocinera" << endl;
-    motor.agregarClausula(c3);
-    
-    // 4. CrimenJardinero => TijerasManchadas
-    Clausula c4;
-    c4.literales.insert(Literal("CrimenJardinero", true));
-    c4.literales.insert(Literal("TijerasManchadas", false));
-    cout << "4. ~CrimenJardinero v TijerasManchadas" << endl;
-    motor.agregarClausula(c4);
-    
-    // 5. ~TijerasManchadas
-    Clausula c5;
-    c5.literales.insert(Literal("TijerasManchadas", true));
-    cout << "5. ~TijerasManchadas" << endl;
-    motor.agregarClausula(c5);
-    
-    // 6. MayordomoCocina
-    Clausula c6;
-    c6.literales.insert(Literal("MayordomoCocina", false));
-    cout << "6. MayordomoCocina" << endl;
-    motor.agregarClausula(c6);
-    
-    // 7. Crimen10pm
-    Clausula c7;
-    c7.literales.insert(Literal("Crimen10pm", false));
-    cout << "7. Crimen10pm" << endl;
-    motor.agregarClausula(c7);
-    
-    // 8. CocineraCena
-    Clausula c8;
-    c8.literales.insert(Literal("CocineraCena", false));
-    cout << "8. CocineraCena" << endl;
-    motor.agregarClausula(c8);
-    
-    // Demostrar
-    bool resultado = motor.demostrarPorRefutacion(Literal("CrimenCocinera", false));
-    
+
+    cout << "Modo: lectura de una clausula por linea" << endl;
+    cout << "Formato de literal: '~Nombre' o 'Nombre'. Separador de literales: 'v' o '|'." << endl;
+    cout << "Lineas vacias o que empiezan con '#' se ignoran." << endl;
+   
+    vector<Clausula> clauses;
+
+    // Si se pasa un argumento, se interpreta como nombre de archivo de clausulas
+    if (argc > 1) {
+        ifstream fin(argv[1]);
+        if (!fin) {
+            cerr << "No se pudo abrir archivo: " << argv[1] << endl;
+            return 1;
+        }
+        clauses = loadClausesFromStream(fin);
+    } else {
+        // Modo interactivo: leer clausulas desde stdin hasta una linea vacia
+        cout << "Introduce clausulas (termina con linea vacia o Ctrl+Z/Enter):" << endl;
+        string line;
+        ostringstream buf;
+        while (true) {
+            if (!getline(cin, line)) break;
+            if (trim(line).empty()) break;
+            buf << line << '\n';
+        }
+        istringstream inbuf(buf.str());
+        clauses = loadClausesFromStream(inbuf);
+    }
+
+    // Mostrar y agregar clausulas al motor
+    cout << "\nClausulas leidas: " << clauses.size() << endl;
+    for (size_t i = 0; i < clauses.size(); ++i) {
+        cout << i+1 << ". ";
+        bool first = true;
+        for (const Literal &lit : clauses[i].literales) {
+            if (!first) cout << " v ";
+            first = false;
+            if (lit.negado) cout << "~";
+            cout << lit.nombre;
+        }
+        cout << endl;
+        motor.agregarClausula(clauses[i]);
+    }
+
+    // Pedir la sentencia (consulta) a demostrar
+    cout << "\nIntroduzca la sentencia a demostrar: ";
+    string queryLine;
+    if (!getline(cin, queryLine) || trim(queryLine).empty()) {
+        cerr << "No se proporciono consulta. Abortando." << endl;
+        return 1;
+    }
+    Clausula qcl = parseLineToClausula(queryLine);
+    if (qcl.literales.empty()) {
+        cerr << "Consulta invalida." << endl;
+        return 1;
+    }
+    // Tomar la primera literal como consulta
+    Literal query = *qcl.literales.begin();
+
+    // Ejecuta la demostracion por refutacion en el motor
+    bool resultado = motor.demostrarPorRefutacion(query);
+
     cout << "\n============================================" << endl;
     cout << "            VEREDICTO FINAL" << endl;
     cout << "============================================" << endl;
-    
+
     if (resultado) {
-        cout << "\nCASO RESUELTO: La COCINERA es CULPABLE" << endl;
-        cout << "\nRazonamiento por eliminacion:" << endl;
-        cout << "  - Mayordomo: Tiene coartada (en cocina)" << endl;
-        cout << "  - Jardinero: No pudo ser (tijeras limpias)" << endl;
-        cout << "  - Cocinera: UNICA sospechosa posible" << endl;
-        cout << "\nPor lo tanto, fue la Cocinera.\n" << endl;
+        cout << "\nResultado: La sentencia fue demostrada" << endl;
     } else {
-        cout << "\nNo se pudo demostrar culpabilidad.\n" << endl;
+        cout << "\nResultado: No se pudo demostrar la sentencia" << endl;
     }
-    
+
     cout << "============================================\n" << endl;
-    
     return 0;
 }
